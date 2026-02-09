@@ -1,0 +1,46 @@
+/* تنسيقات الجذع والأغصان */
+.branch-path {
+    fill: none;
+    stroke: #8B4513; /* لون بني غامق للخشب */
+    stroke-width: 4px; /* سمك الأغصان */
+    stroke-linecap: round; /* نهاية مستديرة للأغصان */
+    stroke-linejoin: round; /* تقاطع مستدير */
+    filter: drop-shadow(1px 1px 1px rgba(0,0,0,0.2)); /* ظل خفيف يعطي عمق */
+}
+
+/* شكل الأوراق التي ستحمل الأسماء */
+.node-leaf-shape {
+    fill: #6B8E23; /* لون أخضر زيتوني للأوراق */
+    stroke: #556B2F; /* حدود أغمق للورقة */
+    stroke-width: 1.5px;
+    filter: drop-shadow(1px 1px 1px rgba(0,0,0,0.1));
+    transition: fill 0.2s, stroke 0.2s, transform 0.2s;
+}
+
+/* تأثير عند المرور على الورقة */
+.node-leaf-shape:hover {
+    fill: #FFD700; /* لون ذهبي عند التأشير */
+    stroke: #DAA520; /* حدود ذهبية أغمق */
+    transform: scale(1.05); /* تكبير خفيف للورقة */
+}
+
+/* تنسيق النص داخل الأوراق */
+.node-text {
+    font-family: 'Amiri', serif;
+    font-size: 12px;
+    fill: #fdfefe; /* لون أبيض مائل للبيج للنص داخل الأوراق */
+    pointer-events: none; /* لكي لا يعيق النص عملية الضغط على الورقة */
+    text-anchor: middle;
+    dominant-baseline: middle; /* لتوسيط النص عمودياً */
+}
+
+/* تنسيق ورقة مميزة (مثلاً الأجداد الرئيسيين) */
+.node-leaf-shape.golden {
+    fill: #FFD700; /* لون ذهبي لامع */
+    stroke: #DAA520;
+    stroke-width: 2px;
+}
+
+.node-leaf-shape.golden + .node-text {
+    fill: #333; /* نص أسود على الورقة الذهبية */
+}
