@@ -67,23 +67,36 @@
 // ==========================================
 const GOOGLE_SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTvwBCRNKVIlbxlpTPNwLt0nDLb4SvYqDc1DjpzEHOivVLolDZAo5UUjkjpi8CzNvWHa3JVuYRIS_uC/pub?output=csv";
 
-        function fetchAndBuildData() {
-            Papa.parse(GOOGLE_SHEET_CSV_URL, {
-                download: true,
-                header: true,
-                complete: function(results) {
-                    try {
-                        buildSiteData(results.data);
-                        if(siteData.departments.length === 0) throw new Error("لا توجد بيانات في الملف");
-                        goHome(); 
-                    } catch (e) {
-                        document.getElementById('app').innerHTML = `<div class="bg-red-50 p-6 text-center text-red-600 rounded-xl border border-red-200"><b>خطأ في تنسيق البيانات:</b><br>${e.message}</div>`;
-                    }
-                },
-                error: function(err) {
-                    document.getElementById('app').innerHTML = `<div class="bg-red-50 p-6 text-center text-red-600 rounded-xl border border-red-200"><b>تعذر الوصول لملف جوجل شيت!</b><br>${err.message}</div>`;
+        async function fetchAndBuildData() {
+            try {
+                // جلب البيانات باستخدام التقنية الحديثة (Fetch) لتجاوز حظر المتصفح
+                const response = await fetch(GOOGLE_SHEET_CSV_URL);
+                
+                if (!response.ok) {
+                    throw new Error("مشكلة في الاتصال بالرابط (كود: " + response.status + ")");
                 }
-            });
+                
+                // تحويل الملف المحمل إلى نص مقروء
+                const csvText = await response.text();
+
+                // قراءة النص وتحويله لبطاقات
+                Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true, // مهم جداً لتجاهل الأسطر الفارغة في الإكسل
+                    complete: function(results) {
+                        try {
+                            buildSiteData(results.data);
+                            if(siteData.departments.length === 0) throw new Error("الملف فارغ أو أسماء الأعمدة في الإكسل غير مطابقة للكود.");
+                            goHome(); 
+                        } catch (e) {
+                            document.getElementById('app').innerHTML = `<div class="bg-red-50 p-6 text-center text-red-600 rounded-xl border border-red-200"><b>خطأ في البيانات:</b><br>${e.message}</div>`;
+                        }
+                    }
+                });
+
+            } catch (err) {
+                document.getElementById('app').innerHTML = `<div class="bg-red-50 p-6 text-center text-red-600 rounded-xl border border-red-200"><b>تعذر سحب البيانات:</b><br>${err.message}</div>`;
+            }
         }
 
         function buildSiteData(rows) {
