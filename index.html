@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>بوابة المشاريع | الإدارة العليا</title>
+    <title>  بوابة مشاريع التخرج | YIC </title>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -101,15 +101,16 @@
             return DEPT_THEMES[code] || DEPT_THEMES['DEFAULT'];
         }
 
-        let siteData = { departments: [], stats: { total: 0, completed: 0, inProgress: 0, overallProgress: 0, sumProgress: 0 } };
-        let state = { view: 'home', activeDeptIndex: null, activeProjIndex: null, searchQuery: '', statusFilter: 'All', sortFilter: 'default' };
+        let siteData = { departments: [], stats: { total: 0, completed: 0, inProgress: 0, delayed: 0, overallProgress: 0, sumProgress: 0 } };
+        // [تعديل]: إضافة chartView للحالة
+        let state = { view: 'home', activeDeptIndex: null, activeProjIndex: null, searchQuery: '', statusFilter: 'All', sortFilter: 'default', chartView: 'deptBar' };
         let searchTimeout = null;
         let mainChartInstance = null; 
         
         const BASE_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTvwBCRNKVIlbxlpTPNwLt0nDLb4SvYqDc1DjpzEHOivVLolDZAo5UUjkjpi8CzNvWHa3JVuYRIS_uC/pub?output=csv";
         const appDiv = document.getElementById('app');
 
-        // [تحسين]: دالة ذكية لمعالجة النصوص العربية وتوحيد البحث
+        // دالة ذكية لمعالجة النصوص العربية وتوحيد البحث
         function normArabic(s = '') {
             return s.toString()
                 .trim()
@@ -169,7 +170,7 @@
 
         function buildSiteData(rows) {
             let deptMap = {};
-            siteData.stats = { total: 0, completed: 0, inProgress: 0, overallProgress: 0, sumProgress: 0 }; 
+            siteData.stats = { total: 0, completed: 0, inProgress: 0, delayed: 0, overallProgress: 0, sumProgress: 0 }; 
 
             for (let i = 0; i < rows.length; i++) {
                 if (rows[i]['الأسبوع الحالي'] && rows[i]['الأسبوع الحالي'].trim() !== '') {
@@ -193,8 +194,16 @@
 
                 siteData.stats.total++;
                 siteData.stats.sumProgress += progress;
-                if (completedWeeks === TOTAL_WEEKS) siteData.stats.completed++;
-                else siteData.stats.inProgress++;
+                
+                // حساب المتأخرين بشكل صحيح
+                if (completedWeeks === TOTAL_WEEKS) {
+                    siteData.stats.completed++;
+                } else {
+                    siteData.stats.inProgress++;
+                    if (CURRENT_WEEK > completedWeeks) {
+                        siteData.stats.delayed++;
+                    }
+                }
 
                 if(!deptMap[deptCode]) deptMap[deptCode] = { code: deptCode, name: (row['اسم القسم'] || "").trim() || deptCode, projects: [], sumProgress: 0 };
 
@@ -246,36 +255,82 @@
         }
 
         function renderDashboardStats() {
+            const total = siteData.stats.total || 1; 
+            const compPct = Math.round((siteData.stats.completed / total) * 100);
+            const inProgPct = Math.round((siteData.stats.inProgress / total) * 100);
+            const delayedCount = siteData.stats.delayed || 0;
+            const delayedPct = Math.round((delayedCount / total) * 100);
+
             return `
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col border-l-4 border-l-blue-600 fade-in" style="animation-delay: 0.1s">
-                        <p class="text-slate-500 font-bold text-sm mb-1">متوسط إنجاز الكلية</p>
-                        <div class="flex items-end justify-between mt-2">
-                            <h3 class="text-4xl font-black text-slate-800">${siteData.stats.overallProgress}%</h3>
-                            <div class="w-16 h-2 bg-slate-100 rounded-full overflow-hidden"><div class="bg-blue-600 h-full" style="width: ${siteData.stats.overallProgress}%"></div></div>
-                        </div>
+                <div class="bg-slate-900 rounded-xl p-5 md:p-6 mb-6 shadow-lg flex flex-col md:flex-row items-center justify-between gap-4 border border-slate-800 fade-in relative overflow-hidden">
+                    <div class="absolute -left-10 -top-10 w-40 h-40 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
+                    <div class="text-white text-center md:text-right w-full md:w-auto z-10">
+                        <h2 class="text-lg md:text-xl font-bold text-slate-100">متوسط إنجاز المشاريع</h2>
+                        <p class="text-xs md:text-sm text-slate-400 mt-1">يعكس متوسط الإنجاز لكافة المشاريع المعتمدة في النظام</p>
                     </div>
-                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col border-l-4 border-l-slate-600 fade-in" style="animation-delay: 0.15s">
+                    <div class="w-full md:w-1/2 flex items-center gap-4 z-10">
+                        <div class="flex-grow h-3 md:h-4 bg-slate-800 rounded-full overflow-hidden border border-slate-700 shadow-inner">
+                            <div class="bg-gradient-to-l from-blue-400 to-blue-600 h-full rounded-full relative" style="width: ${siteData.stats.overallProgress}%">
+                                <div class="absolute inset-0 bg-white/20 w-full h-full animate-[pulse_2s_ease-in-out_infinite]"></div>
+                            </div>
+                        </div>
+                        <span class="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-l from-blue-200 to-white">${siteData.stats.overallProgress}%</span>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-8">
+                    <div onclick="handleFilter('All'); document.getElementById('breadcrumbs').scrollIntoView({behavior: 'smooth'})" class="group cursor-pointer bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-1 hover:border-slate-400 transition-all duration-300 flex flex-col border-r-4 border-r-slate-600 fade-in" style="animation-delay: 0.1s">
                         <div class="flex justify-between items-start">
-                            <p class="text-slate-500 font-bold text-sm">المشاريع المعتمدة</p>
-                            <span class="bg-slate-100 text-slate-500 p-1.5 rounded-lg text-lg">📁</span>
+                            <p class="text-slate-500 font-bold text-xs md:text-sm transition-colors group-hover:text-slate-700">كل المشاريع</p>
+                            <span class="bg-slate-50 text-slate-500 p-1.5 rounded-lg transition-transform group-hover:scale-110">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                            </span>
                         </div>
-                        <h3 class="text-3xl font-black text-slate-800 mt-2">${siteData.stats.total}</h3>
-                    </div>
-                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col border-l-4 border-l-emerald-500 fade-in" style="animation-delay: 0.2s">
-                         <div class="flex justify-between items-start">
-                            <p class="text-slate-500 font-bold text-sm">المشاريع المنجزة</p>
-                            <span class="bg-emerald-50 text-emerald-500 p-1.5 rounded-lg text-lg">🏆</span>
+                        <div class="flex items-end justify-between mt-2">
+                            <h3 class="text-2xl md:text-3xl font-black text-slate-800">${siteData.stats.total}</h3>
+                            <span class="text-[10px] md:text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded">100%</span>
                         </div>
-                        <h3 class="text-3xl font-black text-emerald-600 mt-2">${siteData.stats.completed}</h3>
                     </div>
-                    <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col border-l-4 border-l-amber-500 fade-in" style="animation-delay: 0.25s">
-                         <div class="flex justify-between items-start">
-                            <p class="text-slate-500 font-bold text-sm">جاري العمل</p>
-                            <span class="bg-amber-50 text-amber-500 p-1.5 rounded-lg text-lg">⚙️</span>
+
+                    <div onclick="handleFilter('Completed'); document.getElementById('breadcrumbs').scrollIntoView({behavior: 'smooth'})" class="group cursor-pointer bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-1 hover:border-emerald-400 transition-all duration-300 flex flex-col border-r-4 border-r-emerald-500 fade-in" style="animation-delay: 0.15s">
+                        <div class="flex justify-between items-start">
+                            <p class="text-slate-500 font-bold text-xs md:text-sm transition-colors group-hover:text-emerald-700">المشاريع المنجزة</p>
+                            <span class="bg-emerald-50 text-emerald-500 p-1.5 rounded-lg transition-transform group-hover:scale-110">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"></path></svg>
+                            </span>
                         </div>
-                        <h3 class="text-3xl font-black text-amber-600 mt-2">${siteData.stats.inProgress}</h3>
+                        <div class="flex items-end justify-between mt-2">
+                            <h3 class="text-2xl md:text-3xl font-black text-emerald-600">${siteData.stats.completed}</h3>
+                            <span class="text-[10px] md:text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded">${compPct}%</span>
+                        </div>
                     </div>
+
+                    <div onclick="handleFilter('In Progress'); document.getElementById('breadcrumbs').scrollIntoView({behavior: 'smooth'})" class="group cursor-pointer bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-1 hover:border-blue-400 transition-all duration-300 flex flex-col border-r-4 border-r-blue-500 fade-in" style="animation-delay: 0.2s">
+                        <div class="flex justify-between items-start">
+                            <p class="text-slate-500 font-bold text-xs md:text-sm transition-colors group-hover:text-blue-700">جاري العمل</p>
+                            <span class="bg-blue-50 text-blue-500 p-1.5 rounded-lg transition-transform group-hover:scale-110">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                            </span>
+                        </div>
+                        <div class="flex items-end justify-between mt-2">
+                            <h3 class="text-2xl md:text-3xl font-black text-blue-600">${siteData.stats.inProgress}</h3>
+                            <span class="text-[10px] md:text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">${inProgPct}%</span>
+                        </div>
+                    </div>
+
+                    <div onclick="handleFilter('Delayed'); document.getElementById('breadcrumbs').scrollIntoView({behavior: 'smooth'})" class="group cursor-pointer bg-white p-4 md:p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-1 hover:border-red-400 transition-all duration-300 flex flex-col border-r-4 border-r-red-500 fade-in" style="animation-delay: 0.25s">
+                        <div class="flex justify-between items-start">
+                            <p class="text-slate-500 font-bold text-xs md:text-sm transition-colors group-hover:text-red-700">متأخرة عن الخطة</p>
+                            <span class="bg-red-50 text-red-500 p-1.5 rounded-lg transition-transform group-hover:scale-110">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            </span>
+                        </div>
+                        <div class="flex items-end justify-between mt-2">
+                            <h3 class="text-2xl md:text-3xl font-black text-red-600">${delayedCount}</h3>
+                            <span class="text-[10px] md:text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded">${delayedPct}%</span>
+                        </div>
+                    </div>
+
                 </div>
             `;
         }
@@ -311,7 +366,6 @@
             let theme = getDeptTheme(deptCode);
             let isComplete = project.completedWeeks === TOTAL_WEEKS;
 
-            // [تحسين]: إضافة Accessibility للكرت (role, tabindex, onkeydown)
             return `
                 <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ') { event.preventDefault(); goProject(${dIndex}, ${pIndex}); }" onclick="goProject(${dIndex}, ${pIndex})" class="bg-white p-5 rounded-xl border border-slate-200 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer flex flex-col h-full fade-in" style="animation-delay: ${animationDelay}s">
                     <div class="flex justify-between items-center mb-3">
@@ -337,6 +391,12 @@
             `;
         }
 
+        // [تعديل]: إضافة دالة لتغيير نوع الرسم البياني
+        function changeChartType(type) {
+            state.chartView = type;
+            initChart(); 
+        }
+
         function renderHome() {
             updateBreadcrumbs();
             if (state.searchQuery || state.statusFilter !== 'All' || state.sortFilter !== 'default') {
@@ -346,10 +406,17 @@
 
             let html = `<div class="fade-in">${renderDashboardStats()}${renderControls()}`;
 
+            // [تعديل]: إضافة القائمة المنسدلة للتبديل بين الشارتات وتغيير ID الـ Canvas
             html += `
                 <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-8 fade-in print-break" style="animation-delay: 0.3s">
-                    <h3 class="text-lg font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">مقارنة أداء الأقسام الأكاديمية</h3>
-                    <div class="h-56 w-full"><canvas id="deptChart"></canvas></div>
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b border-slate-100 pb-3 gap-3">
+                        <h3 class="text-lg font-bold text-slate-800">التحليل البياني</h3>
+                        <select onchange="changeChartType(this.value)" class="w-full sm:w-auto px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-slate-700 outline-none cursor-pointer focus:border-blue-500 transition-colors shadow-sm">
+                            <option value="deptBar" ${state.chartView === 'deptBar' ? 'selected' : ''}>📊 مقارنة أداء الأقسام</option>
+                            <option value="statusDoughnut" ${state.chartView === 'statusDoughnut' ? 'selected' : ''}>🍩 حالة مشاريع الكلية (الإجمالي)</option>
+                        </select>
+                    </div>
+                    <div class="h-64 w-full relative"><canvas id="mainDashboardChart"></canvas></div>
                 </div>
                 
                 <h3 class="text-lg font-bold text-slate-800 mb-4 fade-in" style="animation-delay: 0.35s">التقارير التفصيلية للأقسام</h3>
@@ -361,8 +428,6 @@
                 let ringColor = dept.averageProgress === 100 ? '#10b981' : theme.ring; 
                 let donutStyle = `background: conic-gradient(${ringColor} ${dept.averageProgress}%, #f1f5f9 0);`;
 
-                // [تحسين]: تم استبدال border-t-${theme.color}-500 بـ inline style لضمان ظهور اللون 
-                // [تحسين]: إضافة Accessibility
                 html += `
                     <div role="button" tabindex="0" onkeydown="if(event.key==='Enter'||event.key===' ') { event.preventDefault(); goDept(${index}); }" onclick="goDept(${index})" class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-slate-300 transition-all cursor-pointer flex flex-col border-t-4 fade-in" style="border-top-color: ${theme.ring}; animation-delay: ${0.4 + (index * 0.05)}s">
                         <div class="flex justify-between items-center mb-5">
@@ -385,33 +450,67 @@
             });
             html += `</div></div>`;
             appDiv.innerHTML = html;
-            initChart(); 
+            
+            // استخدام requestAnimationFrame لضمان تهيئة الشارت بشكل سليم
+            requestAnimationFrame(() => initChart()); 
         }
 
+        // [تعديل]: تحديث دالة الرسم البياني لتدعم النوعين (Bar و Doughnut)
         function initChart() {
             if(mainChartInstance) mainChartInstance.destroy();
-            const ctx = document.getElementById('deptChart');
+            const ctx = document.getElementById('mainDashboardChart');
             if(!ctx) return;
             
-            const labels = siteData.departments.map(d => d.code);
-            const data = siteData.departments.map(d => d.averageProgress);
-            const colors = siteData.departments.map(d => {
-                let theme = getDeptTheme(d.code);
-                return d.averageProgress === 100 ? '#10b981' : theme.ring;
-            });
+            if (state.chartView === 'deptBar') {
+                const labels = siteData.departments.map(d => d.code);
+                const data = siteData.departments.map(d => d.averageProgress);
+                const colors = siteData.departments.map(d => {
+                    let theme = getDeptTheme(d.code);
+                    return d.averageProgress === 100 ? '#10b981' : theme.ring;
+                });
 
-            mainChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderRadius: 4, barThickness: 32 }] },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
-                    scales: { 
-                        y: { beginAtZero: true, max: 100, ticks: { font: { family: 'Cairo' } }, grid: { color: '#f8fafc' } }, 
-                        x: { ticks: { font: { family: 'Cairo', weight: 'bold' } }, grid: { display: false } } 
+                mainChartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderRadius: 4, barThickness: 32 }] },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { 
+                            y: { beginAtZero: true, max: 100, ticks: { font: { family: 'Cairo' } }, grid: { color: '#f8fafc' } }, 
+                            x: { ticks: { font: { family: 'Cairo', weight: 'bold' } }, grid: { display: false } } 
+                        }
                     }
-                }
-            });
+                });
+            } else if (state.chartView === 'statusDoughnut') {
+                // حساب المشاريع المنتظمة (جاري العمل ناقص المتأخرة)
+                const regularCount = siteData.stats.inProgress - siteData.stats.delayed;
+                
+                mainChartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: { 
+                        labels: ['مشاريع مكتملة', 'منتظمة (في مسارها)', 'مشاريع متأخرة'], 
+                        datasets: [{ 
+                            data: [siteData.stats.completed, regularCount, siteData.stats.delayed], 
+                            backgroundColor: ['#10b981', '#3b82f6', '#ef4444'], 
+                            hoverOffset: 6,
+                            borderWidth: 3,
+                            borderColor: '#ffffff'
+                        }] 
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        cutout: '70%', 
+                        plugins: { 
+                            legend: { 
+                                position: window.innerWidth > 640 ? 'left' : 'bottom', 
+                                rtl: true, 
+                                labels: { font: { family: 'Cairo', size: 13, weight: 'bold' }, padding: 20 } 
+                            },
+                            tooltip: { rtl: true, titleFont: { family: 'Cairo', size: 14 }, bodyFont: { family: 'Cairo', size: 13, weight: 'bold' } }
+                        }
+                    }
+                });
+            }
         }
 
         function renderSearchResults() {
@@ -427,7 +526,6 @@
                 dept.projects.forEach((proj, pIndex) => { allProjects.push({ ...proj, dIndex, pIndex, deptCode: dept.code }); });
             });
 
-            // [تحسين]: استخدام دالة normArabic في الفلترة
             let filtered = allProjects.filter(p => {
                 const searchNorm = normArabic(state.searchQuery);
                 const matchSearch = normArabic(p.title).includes(searchNorm) || 
@@ -460,7 +558,6 @@
             const dept = siteData.departments[state.activeDeptIndex];
             let theme = getDeptTheme(dept.code);
             
-            // [تحسين]: تم استبدال border-t-${theme.color}-500 بـ inline style
             let html = `
                 <div class="fade-in">
                     <button onclick="goHome()" class="mb-4 text-sm font-bold text-slate-500 hover:text-blue-600 flex items-center gap-1 transition-colors w-fit">
@@ -484,7 +581,6 @@
 
             let deptProjects = [...dept.projects].map((p, idx) => ({...p, originalIndex: idx}));
             
-            // [تحسين]: استخدام دالة normArabic في الفلترة داخل القسم
             if(state.searchQuery) {
                 const searchNorm = normArabic(state.searchQuery);
                 deptProjects = deptProjects.filter(p => 
@@ -523,12 +619,12 @@
             let html = `
                 <div class="fade-in max-w-3xl mx-auto">
                     <div class="flex items-center gap-4 mb-4">
-                        <button onclick="goDept(${state.activeDeptIndex})" class="text-sm font-bold text-slate-500 hover:text-blue-600 flex items-center gap-1 transition-colors">
+                        <button onclick="goDept(${state.activeDeptIndex})" class="text-sm font-bold text-slate-500 hover:text-blue-600 flex items-center gap-1 transition-colors no-print">
                             <span>&rarr;</span> رجوع لقائمة القسم
                         </button>
                     </div>
 
-                    <div class="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-slate-200">
+                    <div class="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-slate-200 print-break">
                         <div class="border-b border-slate-200 pb-6 mb-6">
                             <div class="flex justify-between items-start mb-4">
                                 <span class="bg-slate-100 text-slate-700 text-xs font-bold px-3 py-1.5 rounded border border-slate-200 tracking-wider">رقم المرجع: ${project.id}</span>
@@ -540,11 +636,11 @@
                         <div class="grid grid-cols-2 gap-4 mb-8">
                             <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
                                 <p class="text-xs text-slate-500 font-bold mb-1">المشرف الأكاديمي</p>
-                                <p class="font-bold text-slate-800 text-sm">${project.supervisor}</p>
+                                <p class="font-bold text-slate-800 text-sm md:text-base">${project.supervisor}</p>
                             </div>
                             <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
                                 <p class="text-xs text-slate-500 font-bold mb-1">القسم الأكاديمي</p>
-                                <p class="font-bold text-slate-800 text-sm">${dept.name} (${dept.code})</p>
+                                <p class="font-bold text-slate-800 text-sm md:text-base">${dept.name} (${dept.code})</p>
                             </div>
                         </div>
 
@@ -554,17 +650,34 @@
                                     <h4 class="font-bold text-slate-800 mb-1">سجل التقارير الأسبوعية</h4>
                                     <p class="text-xs text-slate-500 font-semibold">تم تسليم ${project.completedWeeks} من أصل ${TOTAL_WEEKS} تقارير مطلوبة للترم.</p>
                                 </div>
-                                <span class="text-2xl font-black ${isComplete ? 'text-emerald-600' : 'text-blue-600'}">${project.progress}%</span>
+                                <span class="text-2xl md:text-3xl font-black ${isComplete ? 'text-emerald-600' : 'text-blue-600'}">${project.progress}%</span>
                             </div>
                             ${renderSegmentedBar(project.completedWeeks)}
                         </div>
 
-                        <div class="flex flex-col md:flex-row gap-4 border-t border-slate-200 pt-6">
-                            <a href="${project.student_url}" target="_blank" rel="noopener noreferrer" class="flex-1 bg-white hover:bg-slate-50 text-slate-700 p-3.5 rounded-lg border border-slate-300 transition-all flex items-center justify-center gap-3 font-bold text-sm">
-                                <span class="text-lg">📁</span> سجل ملفات المشروع
+                        <div class="space-y-4 md:space-y-6 border-t border-slate-200 pt-6 md:pt-8 no-print">
+                            <a href="${project.student_url}" target="_blank" rel="noopener noreferrer" 
+                               class="group flex items-center justify-between w-full bg-white hover:bg-slate-50 text-slate-800 font-bold py-5 md:py-6 px-5 md:px-8 rounded-2xl border-2 border-slate-200 hover:border-blue-400 transition-all shadow-sm">
+                                <div class="flex items-center gap-4 md:gap-6">
+                                    <div class="bg-blue-100 p-3 md:p-4 rounded-xl text-3xl md:text-4xl">👨‍🎓</div>
+                                    <div class="text-right">
+                                        <div class="text-lg md:text-xl text-slate-800">صفحة الطلاب (Student Page)</div>
+                                        <div class="text-[11px] md:text-sm text-slate-500 font-normal mt-1">تتطلب صلاحية الوصول كطالب في مساحة العمل</div>
+                                    </div>
+                                </div>
+                                <span class="text-slate-300 group-hover:text-blue-500 text-2xl transition-colors hidden sm:block">&larr;</span>
                             </a>
-                            <a href="${project.tamkeen_url}" target="_blank" rel="noopener noreferrer" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white p-3.5 rounded-lg transition-all flex items-center justify-center gap-3 font-bold text-sm shadow-sm">
-                                <span class="text-lg">🔐</span> لوحة التقييم والاعتماد
+                            
+                            <a href="${project.tamkeen_url}" target="_blank" rel="noopener noreferrer" 
+                               class="group flex items-center justify-between w-full bg-slate-900 hover:bg-blue-900 text-white font-bold py-5 md:py-6 px-5 md:px-8 rounded-2xl border-2 border-transparent transition-all shadow-md hover:shadow-xl">
+                                <div class="flex items-center gap-4 md:gap-6">
+                                    <div class="bg-slate-800 group-hover:bg-blue-800 p-3 md:p-4 rounded-xl text-3xl md:text-4xl transition-colors">🏢</div>
+                                    <div class="text-right">
+                                        <div class="text-lg md:text-xl">صفحة التمكين (Tamkeen Page)</div>
+                                        <div class="text-[11px] md:text-sm text-slate-400 font-normal mt-1">خاصة بإدارة التمكين والتقييم النهائي</div>
+                                    </div>
+                                </div>
+                                <span class="text-slate-500 group-hover:text-blue-300 text-2xl transition-colors hidden sm:block">&larr;</span>
                             </a>
                         </div>
                     </div>
@@ -585,7 +698,6 @@
         function handleSort(s) { state.sortFilter = s; reRenderCurrentView(); }
         function clearSearch() { state.searchQuery = ''; state.statusFilter = 'All'; state.sortFilter = 'default'; reRenderCurrentView(); }
         
-        // [تحسين]: تحديث دالة الـ render لتشمل صفحة المشروع
         function reRenderCurrentView() { 
             if(state.view === 'home') renderHome(); 
             else if(state.view === 'dept') renderDepartment(); 
