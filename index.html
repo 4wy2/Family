@@ -48,7 +48,10 @@
                 </div>
                 <div>
                     <h1 class="text-lg md:text-xl font-black tracking-wide leading-tight">المنصة المركزية لمشاريع التخرج</h1>
-                    <p class="text-[10px] md:text-xs text-blue-200 font-bold tracking-wider">متابعة التقدم</p>
+                    <p class="text-[10px] md:text-xs text-blue-200 font-bold tracking-wider flex items-center gap-2 mt-1">
+                        متابعة التقدم
+                        <span id="currentWeekBadge" class="bg-blue-800 text-white px-2 py-0.5 rounded text-[10px] shadow-sm hidden"></span>
+                    </p>
                 </div>
             </div>
             
@@ -133,8 +136,17 @@
                     try {
                         if (!results.data || results.data.length === 0) throw new Error("قاعدة البيانات فارغة.");
                         buildSiteData(results.data);
+                        
                         const now = new Date();
                         document.getElementById('lastUpdated').innerText = `التحديث: ${now.toLocaleTimeString('ar-SA')} | الأسبوع: ${CURRENT_WEEK}`;
+                        
+                        // إظهار الأسبوع في أعلى الشاشة
+                        const weekBadge = document.getElementById('currentWeekBadge');
+                        if(weekBadge) {
+                            weekBadge.innerText = `الأسبوع الحالي: ${CURRENT_WEEK}`;
+                            weekBadge.classList.remove('hidden');
+                        }
+
                         goHome(); 
                     } catch (e) {
                         appDiv.innerHTML = `<div class="bg-amber-50 p-8 text-center border-t-4 border-amber-500 rounded-lg shadow-sm max-w-lg mx-auto"><h2 class="text-xl font-bold text-amber-800 mb-2">خطأ في هيكلة البيانات</h2><p class="text-amber-700 text-sm">${e.message}</p></div>`;
@@ -147,8 +159,12 @@
             let deptMap = {};
             siteData.stats = { total: 0, completed: 0, inProgress: 0, overallProgress: 0, sumProgress: 0 }; 
 
-            if (rows.length > 0 && rows[0]['الأسبوع الحالي']) {
-                CURRENT_WEEK = parseInt(rows[0]['الأسبوع الحالي'].trim()) || 1;
+            // دالة أكثر أماناً للبحث عن قيمة الأسبوع الحالي في أي صف
+            for (let i = 0; i < rows.length; i++) {
+                if (rows[i]['الأسبوع الحالي'] && rows[i]['الأسبوع الحالي'].trim() !== '') {
+                    CURRENT_WEEK = parseInt(rows[i]['الأسبوع الحالي'].trim()) || 1;
+                    break;
+                }
             }
 
             rows.forEach(row => {
@@ -187,7 +203,6 @@
             siteData.departments = Object.values(deptMap);
         }
 
-        // تحسين مسار التنقل ليكون أزرار واضحة
         function updateBreadcrumbs() {
             const b = document.getElementById('breadcrumbs');
             let html = `<button onclick="goHome()" class="text-slate-500 hover:text-blue-600 hover:bg-blue-50 px-3 py-1.5 rounded-md transition flex items-center gap-1.5"><span class="text-lg">🏠</span> الرئيسية</button>`;
@@ -267,6 +282,7 @@
                         <select onchange="handleFilter(this.value)" class="w-1/2 md:w-36 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:border-blue-500 text-sm font-semibold text-slate-700 outline-none cursor-pointer">
                             <option value="All" ${state.statusFilter === 'All' ? 'selected' : ''}>الكل</option>
                             <option value="In Progress" ${state.statusFilter === 'In Progress' ? 'selected' : ''}>جاري العمل</option>
+                            <option value="Delayed" ${state.statusFilter === 'Delayed' ? 'selected' : ''}>متأخرة</option>
                             <option value="Completed" ${state.statusFilter === 'Completed' ? 'selected' : ''}>مكتملة</option>
                         </select>
                         <select onchange="handleSort(this.value)" class="w-1/2 md:w-44 px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:border-blue-500 text-sm font-semibold text-slate-700 outline-none cursor-pointer">
@@ -400,7 +416,12 @@
             let filtered = allProjects.filter(p => {
                 const searchLower = state.searchQuery.toLowerCase();
                 const matchSearch = p.title.toLowerCase().includes(searchLower) || p.id.toLowerCase().includes(searchLower) || p.supervisor.toLowerCase().includes(searchLower);
-                const matchStatus = state.statusFilter === 'All' || (state.statusFilter === 'Completed' && p.completedWeeks === TOTAL_WEEKS) || (state.statusFilter === 'In Progress' && p.completedWeeks < TOTAL_WEEKS);
+                
+                let matchStatus = true;
+                if (state.statusFilter === 'Completed') matchStatus = p.completedWeeks === TOTAL_WEEKS;
+                else if (state.statusFilter === 'In Progress') matchStatus = p.completedWeeks < TOTAL_WEEKS;
+                else if (state.statusFilter === 'Delayed') matchStatus = (CURRENT_WEEK - p.completedWeeks) > 0 && p.completedWeeks < TOTAL_WEEKS;
+
                 return matchSearch && matchStatus;
             });
 
@@ -417,7 +438,6 @@
             appDiv.innerHTML = html;
         }
 
-        // إضافة زر "الرجوع" لصفحة القسم
         function renderDepartment() {
             updateBreadcrumbs();
             const dept = siteData.departments[state.activeDeptIndex];
@@ -451,7 +471,12 @@
                 deptProjects = deptProjects.filter(p => p.title.toLowerCase().includes(sqLower) || p.id.toLowerCase().includes(sqLower) || p.supervisor.toLowerCase().includes(sqLower));
             }
             if(state.statusFilter !== 'All') {
-                deptProjects = deptProjects.filter(p => state.statusFilter === 'Completed' ? p.completedWeeks === TOTAL_WEEKS : p.completedWeeks < TOTAL_WEEKS);
+                deptProjects = deptProjects.filter(p => {
+                    if (state.statusFilter === 'Completed') return p.completedWeeks === TOTAL_WEEKS;
+                    if (state.statusFilter === 'In Progress') return p.completedWeeks < TOTAL_WEEKS;
+                    if (state.statusFilter === 'Delayed') return (CURRENT_WEEK - p.completedWeeks) > 0 && p.completedWeeks < TOTAL_WEEKS;
+                    return true;
+                });
             }
             if (state.sortFilter === 'high') deptProjects.sort((a, b) => b.progress - a.progress);
             else if (state.sortFilter === 'low') deptProjects.sort((a, b) => a.progress - b.progress);
@@ -466,7 +491,6 @@
             appDiv.innerHTML = html;
         }
 
-        // إضافة زر "الرجوع" لصفحة تفاصيل المشروع
         function renderProject() {
             updateBreadcrumbs();
             const dept = siteData.departments[state.activeDeptIndex];
